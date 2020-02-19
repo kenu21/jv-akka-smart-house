@@ -43,4 +43,18 @@ public class DeviceGroupAndDeviceManagerTest {
         groupActor.tell(new RequestTrackDevice("wrongGroup", "device1", probe.getRef()));
         probe.expectNoMessage();
     }
+
+    @Test
+    public void testReturnSameActorForSameDeviceId() {
+        TestProbe<DeviceRegistered> probe = testKit.createTestProbe(DeviceRegistered.class);
+        ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+
+        groupActor.tell(new RequestTrackDevice("group", "device", probe.getRef()));
+        DeviceRegistered registered1 = probe.receiveMessage();
+
+        // registering same again should be idempotent
+        groupActor.tell(new RequestTrackDevice("group", "device", probe.getRef()));
+        DeviceRegistered registered2 = probe.receiveMessage();
+        assertEquals(registered1.device, registered2.device);
+    }
 }

@@ -2,6 +2,7 @@ package sample;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
@@ -16,7 +17,7 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
 
     private class DeviceTerminated implements Command {
         public final ActorRef<Device.Command> device;
-        public final  String groupId;
+        public final String groupId;
         public final String deviceId;
 
         DeviceTerminated(ActorRef<Device.Command> device, String groupId, String deviceId) {
@@ -49,6 +50,7 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
                 deviceActor =
                         getContext()
                                 .spawn(Device.create(groupId, trackMsg.deviceId), "device-" + trackMsg.deviceId);
+                getContext().watchWith(deviceActor, new DeviceTerminated(deviceActor, groupId, trackMsg.deviceId));
                 deviceIdToActor.put(trackMsg.deviceId, deviceActor);
                 trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
             }
@@ -59,9 +61,25 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
         return this;
     }
 
+    private DeviceGroup onDeviceList(DeviceManager.RequestDeviceList r) {
+        r.replyTo.tell(new DeviceManager.ReplyDeviceList(r.requestId, deviceIdToActor.keySet()));
+        return this;
+    }
+
+    private DeviceGroup onTerminated(DeviceTerminated t) {
+        getContext().getLog().info("Device actor for {} has been terminated", t.deviceId);
+        deviceIdToActor.remove(t.deviceId);
+        return this;
+    }
+
     @Override
     public Receive<Command> createReceive() {
-        return newReceiveBuilder().onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice).build();
+        return newReceiveBuilder()
+                .onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice)
+                .onMessage(DeviceManager.RequestDeviceList.class, r -> r.groupId.equals(groupId), this::onDeviceList)
+                .onMessage(DeviceTerminated.class, this::onTerminated)
+                .onSignal(PostStop.class, signal -> onPostStop())
+                .build();
     }
 
     private DeviceGroup onPostStop() {

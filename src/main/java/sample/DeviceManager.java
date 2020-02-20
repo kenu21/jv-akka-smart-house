@@ -84,7 +84,7 @@ public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
         if (ref != null) {
             ref.tell(trackMsg);
         } else {
-            getContext().getLog().info("Creating device group actor for {}, gpoupId");
+            getContext().getLog().info("Creating device group actor for {}, groupId");
             ActorRef<DeviceGroup.Command> groupActor =
                     getContext().spawn(DeviceGroup.create(groupId), "group-" + groupId);
             getContext().watchWith(groupActor, new DeviceGroupTerminated(groupId));

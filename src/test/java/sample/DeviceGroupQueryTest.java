@@ -195,4 +195,45 @@ public class DeviceGroupQueryTest {
 
         assertEquals(expectedTemperatures, response.temperatures);
     }
+
+    @Test
+    public void testCollectTemperaturesFromAllActiveDevices() {
+        TestProbe<DeviceManager.DeviceRegistered> registeredProbe =
+                testKit.createTestProbe(DeviceManager.DeviceRegistered.class);
+        ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+
+        groupActor.tell(new DeviceManager.RequestTrackDevice(
+                "group", "device1", registeredProbe.getRef()));
+        ActorRef<Device.Command> deviceActor1 = registeredProbe.receiveMessage().device;
+
+        groupActor.tell(new DeviceManager.RequestTrackDevice(
+                "group", "device2", registeredProbe.getRef()));
+        ActorRef<Device.Command> deviceActor2 = registeredProbe.receiveMessage().device;
+
+        groupActor.tell(new DeviceManager.RequestTrackDevice(
+                "group", "device3", registeredProbe.getRef()));
+        ActorRef<Device.Command> deviceActor3 = registeredProbe.receiveMessage().device;
+
+        // Check that the device actors are working
+        TestProbe<Device.TemperatureRecorded> recordProbe =
+                testKit.createTestProbe(Device.TemperatureRecorded.class);
+        deviceActor1.tell(new Device.RecordTemperature(0L, 1.0, recordProbe.getRef()));
+        assertEquals(0L, recordProbe.receiveMessage().requestId);
+        deviceActor2.tell(new Device.RecordTemperature(1L, 2.0, recordProbe.getRef()));
+        assertEquals(1L, recordProbe.receiveMessage().requestId);
+        // No temperature for device 3
+
+        TestProbe<DeviceManager.RespondAllTemperatures> allTempProbe =
+                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        groupActor.tell(new DeviceManager.RequestAllTemperatures(0L, "group", allTempProbe.getRef()));
+        DeviceManager.RespondAllTemperatures response = allTempProbe.receiveMessage();
+        assertEquals(0L, response.requestId);
+
+        Map<String, DeviceManager.TemperatureReading> expectedTemperatures = new HashMap<>();
+        expectedTemperatures.put("device1", new DeviceManager.Temperature(1.0));
+        expectedTemperatures.put("device2", new DeviceManager.Temperature(2.0));
+        expectedTemperatures.put("device3", DeviceManager.TemperatureNotAvailable.INSTANCE);
+
+        assertEquals(expectedTemperatures, response.temperatures);
+    }
 }

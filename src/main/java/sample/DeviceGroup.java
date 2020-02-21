@@ -8,6 +8,7 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +39,17 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
         super(context);
         this.groupId = groupId;
         context.getLog().info("DeviceGroup {} started", groupId);
+    }
+
+    private DeviceGroup onAllTemperatures(DeviceManager.RequestAllTemperatures r) {
+        Map<String, ActorRef<Device.Command>> deviceIdToActorCopy = new HashMap<>(this.deviceIdToActor);
+
+        getContext()
+                .spawnAnonymous(
+                        DeviceGroupQuery.create(
+                                deviceIdToActorCopy, r.requestId, r.replyTo, Duration.ofSeconds(3)));
+
+        return this;
     }
 
     private DeviceGroup onTrackDevice(DeviceManager.RequestTrackDevice trackMsg) {
@@ -78,6 +90,10 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
                 .onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice)
                 .onMessage(DeviceManager.RequestDeviceList.class, r -> r.groupId.equals(groupId), this::onDeviceList)
                 .onMessage(DeviceTerminated.class, this::onTerminated)
+                .onMessage(
+                        DeviceManager.RequestAllTemperatures.class,
+                        r -> r.groupId.equals(groupId),
+                        this::onAllTemperatures)
                 .onSignal(PostStop.class, signal -> onPostStop())
                 .build();
     }

@@ -67,8 +67,7 @@ public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
         }
     }
 
-    public static final class RequestAllTemperatures
-            implements DeviceGroupQuery.Command, DeviceGroup.Command, Command {
+    public static final class RequestAllTemperatures implements DeviceGroupQuery.Command, DeviceGroup.Command, Command {
 
         final long requestId;
         final String groupId;
